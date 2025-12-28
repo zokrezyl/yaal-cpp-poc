@@ -41,7 +41,13 @@ std::vector<std::string> load_words(const char* path) {
     return words;
 }
 
-std::vector<char> generate_document(
+struct GeneratedDocument {
+    std::vector<char> data;
+    uint64_t expected_eol;
+    uint64_t expected_bos;
+};
+
+GeneratedDocument generate_document(
     const std::vector<std::string>& words,
     size_t target_size,
     size_t avg_words_per_line,
@@ -51,6 +57,9 @@ std::vector<char> generate_document(
     FastRandom rng(seed);
     std::vector<char> doc;
     doc.reserve(target_size + 1024);
+
+    uint64_t eol_count = 0;
+    uint64_t bos_count = 0;
 
     const size_t num_words = words.size();
     int current_indent = 0;
@@ -74,8 +83,12 @@ std::vector<char> generate_document(
             for (char c : word) doc.push_back(c);
         }
         doc.push_back('\n');
+
+        // Count events: each line has one newline and one BOS (first non-space char)
+        eol_count++;
+        bos_count++;  // Every generated line has at least one word
     }
-    return doc;
+    return {std::move(doc), eol_count, bos_count};
 }
 
 // Measure READ-ONLY memory throughput using sum (not memcpy!)
@@ -226,15 +239,16 @@ int main(int argc, char* argv[]) {
     std::cout << "Loaded " << words.size() << " words" << std::endl << std::endl;
 
     std::cout << "Generating " << (target_size / (1024*1024)) << " MB document..." << std::endl;
-    auto doc = generate_document(words, target_size, avg_words_per_line, avg_lines_per_indent);
-    std::cout << "Generated " << doc.size() << " bytes" << std::endl << std::endl;
+    auto generated = generate_document(words, target_size, avg_words_per_line, avg_lines_per_indent);
+    std::cout << "Generated " << generated.data.size() << " bytes" << std::endl;
+    std::cout << "Expected: eol=" << generated.expected_eol << ", bos=" << generated.expected_bos << std::endl << std::endl;
 
-    yaal::Buffer buf(doc.data(), doc.size());
+    yaal::Buffer buf(generated.data.data(), generated.data.size());
 
     std::cout << "Running benchmarks (" << iterations << " iterations each)..." << std::endl << std::endl;
 
-    double read_tp = measure_read_throughput(doc.data(), doc.size(), iterations);
-    double nl_tp = measure_newline_throughput(doc.data(), doc.size(), iterations);
+    double read_tp = measure_read_throughput(generated.data.data(), generated.data.size(), iterations);
+    double nl_tp = measure_newline_throughput(generated.data.data(), generated.data.size(), iterations);
 
     yaal::CountingParser parser;
     double parser_tp = measure_parser_throughput(buf, parser, iterations);
@@ -278,15 +292,28 @@ int main(int argc, char* argv[]) {
     std::cout << "  -> Uses 192-byte unrolled loop, local accumulators, and popcnt." << std::endl;
     std::cout << "  -> BASELINE: Reference implementation showing achievable performance." << std::endl << std::endl;
 
-    std::cout << "Verification: ";
-    if (parser.counts().eol == fast_parser.counts().eol &&
-        parser.counts().bos == fast_parser.counts().bos) {
-        std::cout << "PASS (eol=" << parser.counts().eol << ", bos=" << parser.counts().bos << ")" << std::endl;
+    std::cout << "Verification against generator ground truth:" << std::endl;
+    bool all_pass = true;
+
+    std::cout << "  Generator (expected):   eol=" << generated.expected_eol << " bos=" << generated.expected_bos << std::endl;
+
+    std::cout << "  CountingParser:         eol=" << parser.counts().eol << " bos=" << parser.counts().bos;
+    if (parser.counts().eol == generated.expected_eol && parser.counts().bos == generated.expected_bos) {
+        std::cout << " [PASS]" << std::endl;
     } else {
-        std::cout << "FAIL!" << std::endl;
-        std::cout << "  CountingParser:     eol=" << parser.counts().eol << " bos=" << parser.counts().bos << std::endl;
-        std::cout << "  FastCountingParser: eol=" << fast_parser.counts().eol << " bos=" << fast_parser.counts().bos << std::endl;
+        std::cout << " [FAIL]" << std::endl;
+        all_pass = false;
     }
+
+    std::cout << "  FastCountingParser:     eol=" << fast_parser.counts().eol << " bos=" << fast_parser.counts().bos;
+    if (fast_parser.counts().eol == generated.expected_eol && fast_parser.counts().bos == generated.expected_bos) {
+        std::cout << " [PASS]" << std::endl;
+    } else {
+        std::cout << " [FAIL]" << std::endl;
+        all_pass = false;
+    }
+
+    std::cout << std::endl << "Overall: " << (all_pass ? "ALL PASS" : "SOME FAILED") << std::endl;
 
     return 0;
 }
