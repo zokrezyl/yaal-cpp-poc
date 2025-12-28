@@ -1,6 +1,5 @@
 #include "yaal/counting_parser.hpp"
-#include "yaal/fast_counting_parser.hpp"
-#include "yaal/fast_event_parser.hpp"
+#include "yaal/reference_parser.hpp"
 #include <vector>
 #include <string>
 #include <fstream>
@@ -181,22 +180,7 @@ double measure_parser_throughput(const yaal::Buffer& buf, yaal::CountingParser& 
     return (static_cast<double>(buf.len()) * iterations) / elapsed_sec;
 }
 
-double measure_fast_parser_throughput(const yaal::Buffer& buf, yaal::FastCountingParser& parser, int iterations) {
-    parser.reset();
-    parser.parse(buf);
-
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < iterations; i++) {
-        parser.reset();
-        parser.parse(buf);
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-
-    double elapsed_sec = std::chrono::duration<double>(end - start).count();
-    return (static_cast<double>(buf.len()) * iterations) / elapsed_sec;
-}
-
-double measure_crtp_parser_throughput(const yaal::Buffer& buf, yaal::FastCountingParserV2& parser, int iterations) {
+double measure_reference_parser_throughput(const yaal::Buffer& buf, yaal::ReferenceParser& parser, int iterations) {
     parser.reset();
     parser.parse(buf);
 
@@ -253,18 +237,13 @@ int main(int argc, char* argv[]) {
     yaal::CountingParser parser;
     double parser_tp = measure_parser_throughput(buf, parser, iterations);
 
-    yaal::FastCountingParser fast_parser;
-    double fast_tp = measure_fast_parser_throughput(buf, fast_parser, iterations);
-
-    yaal::FastCountingParserV2 crtp_parser;
-    double crtp_tp = measure_crtp_parser_throughput(buf, crtp_parser, iterations);
+    yaal::ReferenceParser ref_parser;
+    double ref_tp = measure_reference_parser_throughput(buf, ref_parser, iterations);
 
     parser.reset();
     parser.parse(buf);
-    fast_parser.reset();
-    fast_parser.parse(buf);
-    crtp_parser.reset();
-    crtp_parser.parse(buf);
+    ref_parser.reset();
+    ref_parser.parse(buf);
 
     std::cout << "=== Results ===" << std::endl << std::endl;
 
@@ -285,10 +264,10 @@ int main(int argc, char* argv[]) {
     std::cout << "  -> CountingParser (counting_parser.hpp) inherits from it and counts events." << std::endl;
     std::cout << "  -> GOAL: Optimize parser_base.hpp to approach memory bandwidth." << std::endl << std::endl;
 
-    std::cout << "FastCountingParser:       ";
-    print_throughput(fast_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (fast_tp / read_tp * 100) << "%)" << std::endl;
-    std::cout << "  -> Standalone parser (fast_counting_parser.hpp) using add-with-carry algorithm." << std::endl;
+    std::cout << "ReferenceParser:          ";
+    print_throughput(ref_tp);
+    std::cout << " (" << std::fixed << std::setprecision(1) << (ref_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << "  -> Standalone parser (reference_parser.hpp) using add-with-carry algorithm." << std::endl;
     std::cout << "  -> Uses 192-byte unrolled loop, local accumulators, and popcnt." << std::endl;
     std::cout << "  -> BASELINE: Reference implementation showing achievable performance." << std::endl << std::endl;
 
@@ -305,8 +284,8 @@ int main(int argc, char* argv[]) {
         all_pass = false;
     }
 
-    std::cout << "  FastCountingParser:     eol=" << fast_parser.counts().eol << " bos=" << fast_parser.counts().bos;
-    if (fast_parser.counts().eol == generated.expected_eol && fast_parser.counts().bos == generated.expected_bos) {
+    std::cout << "  ReferenceParser:        eol=" << ref_parser.counts().eol << " bos=" << ref_parser.counts().bos;
+    if (ref_parser.counts().eol == generated.expected_eol && ref_parser.counts().bos == generated.expected_bos) {
         std::cout << " [PASS]" << std::endl;
     } else {
         std::cout << " [FAIL]" << std::endl;
