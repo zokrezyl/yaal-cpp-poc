@@ -257,37 +257,35 @@ int main(int argc, char* argv[]) {
     std::cout << "Memory read bandwidth:    ";
     print_throughput(read_tp);
     std::cout << " (baseline)" << std::endl;
+    std::cout << "  -> Sequential memory read using SIMD. This is the theoretical maximum." << std::endl << std::endl;
 
     std::cout << "Newline scan:             ";
     print_throughput(nl_tp);
     std::cout << " (" << std::fixed << std::setprecision(1) << (nl_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << "  -> Counts newlines only using SIMD. No BOS detection." << std::endl << std::endl;
 
     std::cout << "CountingParser:           ";
     print_throughput(parser_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (parser_tp / read_tp * 100) << "%) [counting_parser.hpp]" << std::endl;
+    std::cout << " (" << std::fixed << std::setprecision(1) << (parser_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << "  -> CRTP base class (parser_base.hpp) that emits on_bos(offset)/on_eol(offset) events." << std::endl;
+    std::cout << "  -> CountingParser (counting_parser.hpp) inherits from it and counts events." << std::endl;
+    std::cout << "  -> GOAL: Optimize parser_base.hpp to approach memory bandwidth." << std::endl << std::endl;
 
     std::cout << "FastCountingParser:       ";
     print_throughput(fast_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (fast_tp / read_tp * 100) << "%) [fast_counting_parser.hpp]" << std::endl;
+    std::cout << " (" << std::fixed << std::setprecision(1) << (fast_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << "  -> Standalone parser (fast_counting_parser.hpp) using add-with-carry algorithm." << std::endl;
+    std::cout << "  -> Uses 192-byte unrolled loop, local accumulators, and popcnt." << std::endl;
+    std::cout << "  -> BASELINE: Reference implementation showing achievable performance." << std::endl << std::endl;
 
-    std::cout << "FastCountingParserV2:     ";
-    print_throughput(crtp_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (crtp_tp / read_tp * 100) << "%) [fast_event_parser.hpp]" << std::endl;
-
-    std::cout << std::endl << "Old parser counts: eol=" << parser.counts().eol
-              << " bos=" << parser.counts().bos << std::endl;
-    std::cout << "Fast parser counts: eol=" << fast_parser.counts().eol
-              << " bos=" << fast_parser.counts().bos << std::endl;
-    std::cout << "CRTP parser counts: eol=" << crtp_parser.counts().eol
-              << " bos=" << crtp_parser.counts().bos << std::endl;
-
+    std::cout << "Verification: ";
     if (parser.counts().eol == fast_parser.counts().eol &&
-        parser.counts().bos == fast_parser.counts().bos &&
-        parser.counts().eol == crtp_parser.counts().eol &&
-        parser.counts().bos == crtp_parser.counts().bos) {
-        std::cout << "Counts MATCH!" << std::endl;
+        parser.counts().bos == fast_parser.counts().bos) {
+        std::cout << "PASS (eol=" << parser.counts().eol << ", bos=" << parser.counts().bos << ")" << std::endl;
     } else {
-        std::cout << "WARNING: Counts MISMATCH!" << std::endl;
+        std::cout << "FAIL!" << std::endl;
+        std::cout << "  CountingParser:     eol=" << parser.counts().eol << " bos=" << parser.counts().bos << std::endl;
+        std::cout << "  FastCountingParser: eol=" << fast_parser.counts().eol << " bos=" << fast_parser.counts().bos << std::endl;
     }
 
     return 0;
