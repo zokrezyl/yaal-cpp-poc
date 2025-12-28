@@ -254,25 +254,25 @@ int main(int argc, char* argv[]) {
 
     std::cout << "=== Results ===" << std::endl << std::endl;
 
-    std::cout << "Memory read bandwidth: ";
+    std::cout << "Memory read bandwidth:    ";
     print_throughput(read_tp);
     std::cout << " (baseline)" << std::endl;
 
-    std::cout << "Newline scan:          ";
+    std::cout << "Newline scan:             ";
     print_throughput(nl_tp);
     std::cout << " (" << std::fixed << std::setprecision(1) << (nl_tp / read_tp * 100) << "%)" << std::endl;
 
-    std::cout << "Full parser (old):     ";
+    std::cout << "CountingParser:           ";
     print_throughput(parser_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (parser_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << " (" << std::fixed << std::setprecision(1) << (parser_tp / read_tp * 100) << "%) [counting_parser.hpp]" << std::endl;
 
-    std::cout << "Fast parser (new):     ";
+    std::cout << "FastCountingParser:       ";
     print_throughput(fast_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (fast_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << " (" << std::fixed << std::setprecision(1) << (fast_tp / read_tp * 100) << "%) [fast_counting_parser.hpp]" << std::endl;
 
-    std::cout << "CRTP parser:           ";
+    std::cout << "FastCountingParserV2:     ";
     print_throughput(crtp_tp);
-    std::cout << " (" << std::fixed << std::setprecision(1) << (crtp_tp / read_tp * 100) << "%)" << std::endl;
+    std::cout << " (" << std::fixed << std::setprecision(1) << (crtp_tp / read_tp * 100) << "%) [fast_event_parser.hpp]" << std::endl;
 
     std::cout << std::endl << "Old parser counts: eol=" << parser.counts().eol
               << " bos=" << parser.counts().bos << std::endl;
