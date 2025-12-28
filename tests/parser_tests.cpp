@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "yaal/counting_parser.hpp"
-#include "yaal/fast_counting_parser.hpp"
+#include "yaal/reference_parser.hpp"
 
 using namespace boost::ut;
 
@@ -13,15 +13,15 @@ struct ParseResult {
     uint64_t eol;
 };
 
-ParseResult parse_with_reference(const std::string& input) {
+ParseResult parse_with_counting(const std::string& input) {
     yaal::CountingParser parser;
     yaal::Buffer buf(input.data(), input.size());
     parser.parse(buf);
     return {parser.counts().bos, parser.counts().eol};
 }
 
-ParseResult parse_with_fast(const std::string& input) {
-    yaal::FastCountingParser parser;
+ParseResult parse_with_reference(const std::string& input) {
+    yaal::ReferenceParser parser;
     yaal::Buffer buf(input.data(), input.size());
     parser.parse(buf);
     return {parser.counts().bos, parser.counts().eol};
@@ -30,26 +30,26 @@ ParseResult parse_with_fast(const std::string& input) {
 suite parser_tests = [] {
     "basic_single_line"_test = [] {
         std::string input = "hello\n";
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     "basic_indented_line"_test = [] {
         std::string input = "  hello\n";
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     "multiple_lines"_test = [] {
         std::string input = "hello\nworld\n";
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     // Tests specifically targeting the 32-byte remainder loop
@@ -61,10 +61,10 @@ suite parser_tests = [] {
         std::string input = "  hello world test string!!\n";  // 28 chars
         input += "abc\n";  // 32 chars total
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for 32-byte input with spaces";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch for 32-byte input with spaces";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for 32-byte input with spaces";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch for 32-byte input with spaces";
     };
 
     "remainder_64bytes_with_spaces"_test = [] {
@@ -81,10 +81,10 @@ suite parser_tests = [] {
         input[41] = ' ';
         input[63] = '\n';
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for 64-byte input";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch for 64-byte input";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for 64-byte input";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch for 64-byte input";
     };
 
     "remainder_100bytes_indented_lines"_test = [] {
@@ -99,10 +99,10 @@ suite parser_tests = [] {
         while (input.size() < 99) input += 'x';
         input += '\n';
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for 100-byte indented input";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch for 100-byte indented input";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for 100-byte indented input";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch for 100-byte indented input";
     };
 
     "remainder_after_192byte_main_loop"_test = [] {
@@ -120,10 +120,10 @@ suite parser_tests = [] {
         input[240] = '\n';
         input[249] = '\n';
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for 250-byte input (192+58 remainder)";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch for 250-byte input";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for 250-byte input (192+58 remainder)";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch for 250-byte input";
     };
 
     "remainder_heavy_indentation"_test = [] {
@@ -137,10 +137,10 @@ suite parser_tests = [] {
         while (input.size() < 79) input += ' ';
         input += '\n';
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for heavily indented 80-byte input";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for heavily indented 80-byte input";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     "remainder_empty_lines_with_spaces"_test = [] {
@@ -155,10 +155,10 @@ suite parser_tests = [] {
         while (input.size() < 49) input += ' ';
         input += '\n';
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch for empty lines with spaces";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch for empty lines with spaces";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     "remainder_all_spaces_between_newlines"_test = [] {
@@ -168,10 +168,10 @@ suite parser_tests = [] {
         input += "\nb\n";
         // Total: 2 + 30 + 2 = 34 bytes, hits 32-byte remainder
 
+        auto counting = parse_with_counting(input);
         auto ref = parse_with_reference(input);
-        auto fast = parse_with_fast(input);
-        expect(eq(ref.bos, fast.bos)) << "BOS mismatch: spaces between newlines";
-        expect(eq(ref.eol, fast.eol)) << "EOL mismatch";
+        expect(eq(counting.bos, ref.bos)) << "BOS mismatch: spaces between newlines";
+        expect(eq(counting.eol, ref.eol)) << "EOL mismatch";
     };
 
     "stress_various_sizes_32_to_191"_test = [] {
@@ -191,10 +191,10 @@ suite parser_tests = [] {
                 input[size - 1] = '\n';
             }
 
+            auto counting = parse_with_counting(input);
             auto ref = parse_with_reference(input);
-            auto fast = parse_with_fast(input);
-            expect(eq(ref.bos, fast.bos)) << "BOS mismatch at size " << size;
-            expect(eq(ref.eol, fast.eol)) << "EOL mismatch at size " << size;
+            expect(eq(counting.bos, ref.bos)) << "BOS mismatch at size " << size;
+            expect(eq(counting.eol, ref.eol)) << "EOL mismatch at size " << size;
         }
     };
 };

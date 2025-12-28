@@ -7,7 +7,7 @@
 
 namespace yaal {
 
-class FastCountingParser {
+class ReferenceParser {
 public:
     struct Counts {
         uint64_t bod = 0;
@@ -16,7 +16,7 @@ public:
         uint64_t eod = 0;
     };
 
-    FastCountingParser() = default;
+    ReferenceParser() = default;
 
     __attribute__((flatten, hot, noinline))
     void parse(const Buffer& buf) {
