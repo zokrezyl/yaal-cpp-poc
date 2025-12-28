@@ -1,8 +1,9 @@
 // Test and verify the parallel prefix BOS counting algorithm
 #include <cstdint>
 #include <iostream>
-#include <immintrin.h>
 #include <cassert>
+#include <immintrin.h>
+#include <x86intrin.h>
 
 // Naive O(n) algorithm - iterate through each newline
 uint64_t count_bos_naive(uint64_t nl_mask, uint64_t ns_mask, bool need_bos) {
@@ -51,51 +52,23 @@ uint64_t count_bos_naive(uint64_t nl_mask, uint64_t ns_mask, bool need_bos) {
     return count;
 }
 
-// O(log n) parallel prefix algorithm
-uint64_t count_bos_parallel(uint64_t nl_mask, uint64_t ns_mask, bool need_bos) {
-    if (ns_mask == 0) return 0;
-
-    // Propagate newline influence rightward, blocked by non-spaces
-    // After this, reach[i]=1 means position i is "reachable" from a newline through spaces only
-    uint64_t reach = nl_mask;
-    uint64_t blocker = ns_mask;
-
-    reach |= (reach << 1) & ~blocker;
-    reach |= (reach << 2) & ~blocker;
-    reach |= (reach << 4) & ~blocker;
-    reach |= (reach << 8) & ~blocker;
-    reach |= (reach << 16) & ~blocker;
-    reach |= (reach << 32) & ~blocker;
-
-    // BOS = non-space positions where the previous position is reachable from newline
-    // (meaning there's a newline before us with only spaces in between)
-    uint64_t bos_mask = (reach << 1) & ns_mask;
-
-    // Handle start of chunk
-    if (need_bos) {
-        // Add first non-space if it comes before any newline-triggered bos
-        // Actually simpler: first non-space at start is bos if need_bos
-        uint64_t first_ns = ns_mask & (-ns_mask); // isolate lowest bit
-        uint64_t first_nl = nl_mask ? (nl_mask & (-nl_mask)) : 0;
-
-        // If first_ns comes before first_nl (or no newlines), it's a bos
-        if (first_ns && (!first_nl || first_ns < first_nl)) {
-            bos_mask |= first_ns;
-        }
-    }
-
+// arithmetic algorithm
+uint64_t count_bos_carry(uint64_t nl_mask, uint64_t sp_mask, bool need_bos) {
+    unsigned long long e2;
+    _addcarry_u64(need_bos, sp_mask, nl_mask, &e2);
+    uint64_t bos_mask = e2 & ~sp_mask;
     return _mm_popcnt_u64(bos_mask);
 }
 
 void test_case(const char* name, uint64_t nl_mask, uint64_t ns_mask, bool need_bos) {
     uint64_t naive = count_bos_naive(nl_mask, ns_mask, need_bos);
-    uint64_t parallel = count_bos_parallel(nl_mask, ns_mask, need_bos);
+    uint64_t carry = count_bos_carry(nl_mask, ~ns_mask, need_bos);
 
     std::cout << name << ": ";
-    if (naive == parallel) {
+    if (naive == carry) {
         std::cout << "PASS (count=" << naive << ")" << std::endl;
     } else {
-        std::cout << "FAIL! naive=" << naive << " parallel=" << parallel << std::endl;
+        std::cout << "FAIL! naive=" << naive << " carry=" << carry << std::endl;
         std::cout << "  nl_mask=0x" << std::hex << nl_mask << std::endl;
         std::cout << "  ns_mask=0x" << std::hex << ns_mask << std::dec << std::endl;
     }
