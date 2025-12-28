@@ -42,6 +42,6 @@ jobs:
       run: |
         for size in 1 10 100 1000; do
           echo "=== Running benchmark with ${size}MB ==="
-          ./yaal_benchmark --size $size --iterations 3
+          ./yaal_benchmark --size $size --iterations 3 --dict ../tests/data/words
         done
 
