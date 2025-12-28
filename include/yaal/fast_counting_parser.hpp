@@ -75,9 +75,9 @@ public:
             local_eol += _mm_popcnt_u64(nl_mask_0);
             local_eol += _mm_popcnt_u64(nl_mask_1);
             local_eol += _mm_popcnt_u64(nl_mask_2);
-            local_bos += count_bos_fast(nl_mask_0, sp_mask_0, need_bos, need_bos);
-            local_bos += count_bos_fast(nl_mask_1, sp_mask_1, need_bos, need_bos);
-            local_bos += count_bos_fast(nl_mask_2, sp_mask_2, need_bos, need_bos);
+            local_bos += count_bos_fast(nl_mask_0, sp_mask_0 | nl_mask_0, need_bos, need_bos);
+            local_bos += count_bos_fast(nl_mask_1, sp_mask_1 | nl_mask_1, need_bos, need_bos);
+            local_bos += count_bos_fast(nl_mask_2, sp_mask_2 | nl_mask_2, need_bos, need_bos);
 
             pos += 192;
         }
@@ -89,10 +89,9 @@ public:
                 _mm256_cmpeq_epi8(chunk, newline_vec)));
             uint32_t sp_mask = static_cast<uint32_t>(_mm256_movemask_epi8(
                 _mm256_cmpeq_epi8(chunk, space_vec)));
-            uint32_t ns_mask = ~(sp_mask | nl_mask);
 
             local_eol += _mm_popcnt_u32(nl_mask);
-            local_bos += count_bos_fast_32(nl_mask, ns_mask, need_bos, need_bos);
+            local_bos += count_bos_fast_32(nl_mask, sp_mask | nl_mask, need_bos, need_bos);
 
             pos += 32;
         }
@@ -124,20 +123,18 @@ private:
     Counts counts_;
 
     __attribute__((always_inline, hot))
-    static uint64_t count_bos_fast(uint64_t nl_mask, uint64_t sp_mask, uint8_t need_bos_in, uint8_t& need_bos_out) {
-        uint64_t e1 = nl_mask | sp_mask;
-        unsigned long long e2;
-        need_bos_out = _addcarry_u64(need_bos_in, sp_mask, nl_mask, &e2);
-        uint64_t bos_mask = e2 & ~sp_mask;
+    static uint64_t count_bos_fast(uint64_t nl_mask, uint64_t ws_mask, uint8_t need_bos_in, uint8_t& need_bos_out) {
+        unsigned long long sum;
+        need_bos_out = _addcarry_u64(need_bos_in, ws_mask, nl_mask, &sum);
+        uint64_t bos_mask = sum & ~ws_mask;
         return _mm_popcnt_u64(bos_mask);
     }
 
     __attribute__((always_inline, hot))
-    static uint32_t count_bos_fast_32(uint32_t nl_mask, uint32_t sp_mask, uint8_t need_bos_in, uint8_t& need_bos_out) {
-        uint32_t e1 = nl_mask | sp_mask;
-        unsigned e2;
-        need_bos_out = _addcarry_u32(need_bos_in, sp_mask, nl_mask, &e2);
-        uint32_t bos_mask = e2 & ~sp_mask;
+    static uint32_t count_bos_fast_32(uint32_t nl_mask, uint32_t ws_mask, uint8_t need_bos_in, uint8_t& need_bos_out) {
+        unsigned sum;
+        need_bos_out = _addcarry_u32(need_bos_in, ws_mask, nl_mask, &sum);
+        uint32_t bos_mask = sum & ~ws_mask;
         return _mm_popcnt_u32(bos_mask);
     }
 };
