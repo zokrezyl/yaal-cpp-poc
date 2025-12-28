@@ -37,3 +37,11 @@ jobs:
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest -C ${{env.BUILD_TYPE}}
 
+    - name: Benchmark
+      working-directory: ${{github.workspace}}/build
+      run: |
+        for size in 1 10 100 1000; do
+          echo "=== Running benchmark with ${size}MB ==="
+          ./yaal_benchmark --size $size --iterations 3
+        done
+
